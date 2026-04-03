@@ -62,7 +62,7 @@ function writeContract(params) {
   if (quantity <= 0) throw new Error("Quantity must be positive.");
   if (premium < 0) throw new Error("Premium cannot be negative.");
   if (!expiry) throw new Error("Expiry date is required.");
-  if (new Date(expiry) <= new Date())
+  if (new Date(expiry).getTime() <= new Date().getTime())
     throw new Error("Expiry must be in the future.");
 
   const contracts = getAllContracts();
