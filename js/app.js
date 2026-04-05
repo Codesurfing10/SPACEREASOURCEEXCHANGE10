@@ -28,6 +28,12 @@ import {
   simulateCharge,
   unmountCardElement,
 } from "./payments.js";
+import {
+  collectFee,
+  recordFeeUsd,
+  calculateFeeEther,
+  FEE_RATE,
+} from "./fees.js";
 
 /* ─── Helpers ─────────────────────────────────────────────────────────────── */
 
@@ -413,13 +419,28 @@ function wireEvents() {
     }
 
     // Demo: 0.001 ETH stand-in for premium (would be real USD-pegged stablecoin in prod)
+    const premiumEther = 0.001;
+    const feeEther = calculateFeeEther(premiumEther);
     try {
       document.getElementById("btn-pay-crypto").disabled = true;
       document.getElementById("btn-pay-crypto").textContent = "Sending…";
-      const txHash = await sendPremiumPayment(c.seller, 0.001);
+      const txHash = await sendPremiumPayment(c.seller, premiumEther);
+      // Mark the contract as bought first so the buyer is never left without
+      // the contract if the fee transfer subsequently fails.
       buyContract(contractId, WalletState.address);
+      // Collect 2.5% platform fee from the buyer (best-effort; non-fatal).
+      let feeWarning = "";
+      try {
+        await collectFee(premiumEther);
+      } catch {
+        feeWarning = " (fee tx failed – will retry)";
+        recordFeeUsd(premiumEther * 1e3, contractId, "BUY"); // log for reconciliation
+      }
       closePaymentModal();
-      toast(`Contract purchased! Tx: ${txHash.slice(0, 18)}…`, "success");
+      toast(
+        `Contract purchased! Fee: ${feeEther.toFixed(6)} ETH. Tx: ${txHash.slice(0, 18)}…${feeWarning}`,
+        "success"
+      );
       renderContracts();
     } catch (err) {
       toast(err.message, "error");
@@ -442,9 +463,14 @@ function wireEvents() {
       document.getElementById("btn-pay-card").textContent = "Processing…";
       const token = await tokeniseCard({ name: WalletState.address || "Trader" });
       const result = await simulateCharge(token, amount, `${c.type} on ${r.name}`);
+      // Record 2.5% platform fee for the card payment
+      const feeRecord = recordFeeUsd(amount, contractId, "BUY");
       buyContract(contractId, WalletState.address || "card-buyer");
       closePaymentModal();
-      toast(`Payment successful (Charge ID: ${result.chargeId})`, "success");
+      toast(
+        `Payment successful! Fee: $${feeRecord.feeUsd.toFixed(2)} (Charge ID: ${result.chargeId})`,
+        "success"
+      );
       renderContracts();
     } catch (err) {
       toast(err.message, "error");
@@ -473,18 +499,28 @@ function wireEvents() {
     try {
       const contract = writeContract(params);
 
+      // Record 2.5% platform fee on the sell (total premium value)
+      const totalPremium = contract.premium * contract.quantity;
+      const sellFee = recordFeeUsd(totalPremium, contract.id, "SELL");
+
       // Optionally sign with wallet
       if (WalletState.connected) {
         try {
           document.getElementById("btn-write-submit").textContent = "Signing…";
           const sig = await signContractMessage(contract);
           attachSignature(contract.id, sig);
-          toast("Contract written & signed on-chain!", "success");
+          toast(
+            `Contract written & signed! Seller fee: $${sellFee.feeUsd.toFixed(2)} (${(FEE_RATE * 100).toFixed(1)}%)`,
+            "success"
+          );
         } catch {
           toast("Contract written (signature skipped).", "info");
         }
       } else {
-        toast("Contract written! Connect wallet to sign it on-chain.", "info");
+        toast(
+          `Contract written! Fee: $${sellFee.feeUsd.toFixed(2)}. Connect wallet to sign on-chain.`,
+          "info"
+        );
       }
 
       e.target.reset();
