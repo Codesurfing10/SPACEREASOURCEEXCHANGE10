@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Resource Exchange – Option Contracts for Extraterrestrial Resources</title>
+  <meta name="description" content="Buy and sell option contracts for space resources — lunar ice, helium-3, platinum-group metals and more. Funded via crypto wallet or Stripe." />
+
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
+  <!-- Stripe.js (loaded before our module so window.Stripe is available) -->
+  <script src="https://js.stripe.com/v3/" async></script>
+
+  <link rel="stylesheet" href="css/styles.css" />
+</head>
+<body>
+<div id="app">
+
+  <!-- ─── Navbar ──────────────────────────────────────────────────────────── -->
+  <nav id="nav">
+    <span class="nav-brand">🌌 SpaceRex</span>
+
+    <div class="nav-links">
+      <button class="nav-link active" data-section="market">Market</button>
+      <button class="nav-link" data-section="contracts">Open Contracts</button>
+      <button class="nav-link" data-section="write">Write Contract</button>
+      <button class="nav-link" data-section="portfolio">Portfolio</button>
+    </div>
+
+    <div class="nav-right">
+      <span id="wallet-badge" class="hidden"></span>
+      <button id="btn-connect-wallet" class="btn btn-wallet">Connect Wallet</button>
+    </div>
+  </nav>
+
+  <!-- ─── Hero (inside market section so it scrolls away) ─────────────────── -->
+  <div id="section-market">
+    <div class="hero">
+      <div class="hero-tag">🚀 The Future of Commodity Trading</div>
+      <h1>Space Resource<br/>Exchange</h1>
+      <p>
+        Trade option contracts on extraterrestrial commodities — lunar ice, helium-3
+        fusion fuel, asteroid metals &amp; more. Settle via crypto wallet or card.
+      </p>
+      <div class="hero-actions">
+        <button id="hero-browse" class="btn btn-primary">Browse Market ↓</button>
+        <button id="hero-cta" class="btn btn-outline">Write a Contract</button>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat-item">
+          <div class="stat-value">10</div>
+          <div class="stat-label">Resources Listed</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value" id="stat-open-contracts">—</div>
+          <div class="stat-label">Open Contracts</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">$3M+</div>
+          <div class="stat-label">Highest Spot Price</div>
+        </div>
+        <div class="stat-item">
+          <div class="stat-value">2</div>
+          <div class="stat-label">Payment Methods</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Market Grid -->
+    <div class="section">
+      <div class="section-header">
+        <h2>📊 Live Resource Prices</h2>
+      </div>
+      <div id="category-chips"></div>
+      <div id="market-grid"></div>
+    </div>
+  </div>
+
+  <!-- ─── Open Contracts Section ───────────────────────────────────────────── -->
+  <div id="section-contracts" class="hidden">
+    <div class="section">
+      <div class="section-header">
+        <h2>📋 Open Option Contracts</h2>
+        <button class="btn btn-primary btn-sm" data-section="write"
+          onclick="document.querySelector('[data-section=write]').click()">+ Write New</button>
+      </div>
+
+      <div class="filter-row">
+        <select id="contracts-filter-resource"></select>
+        <select id="contracts-filter-type">
+          <option value="ALL">All Types</option>
+          <option value="CALL">CALL</option>
+          <option value="PUT">PUT</option>
+        </select>
+      </div>
+
+      <div class="table-wrapper">
+        <table class="contracts-table">
+          <thead>
+            <tr>
+              <th>Resource</th>
+              <th>Type</th>
+              <th>Strike</th>
+              <th>Quantity</th>
+              <th>Premium / Unit</th>
+              <th>Total Premium</th>
+              <th>Expiry</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="contracts-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Write Contract Section ───────────────────────────────────────────── -->
+  <div id="section-write" class="hidden">
+    <div class="section">
+      <div class="section-header">
+        <h2>✍️ Write an Option Contract</h2>
+      </div>
+
+      <div class="form-card">
+        <div class="form-title">New Option Contract</div>
+
+        <form id="write-contract-form" autocomplete="off">
+          <div class="form-grid">
+
+            <div class="form-group full">
+              <label for="wc-resource">Resource</label>
+              <select id="wc-resource" name="resourceId" required></select>
+            </div>
+
+            <div class="form-group">
+              <label for="wc-type">Option Type</label>
+              <select id="wc-type" name="type" required>
+                <option value="CALL">CALL — Right to BUY</option>
+                <option value="PUT">PUT — Right to SELL</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="wc-expiry">Expiry Date</label>
+              <input type="date" id="wc-expiry" name="expiry" required />
+            </div>
+
+            <div class="form-group">
+              <label for="wc-strike">Strike Price (USD / unit)</label>
+              <input type="number" id="wc-strike" name="strikePrice"
+                min="0.01" step="any" placeholder="e.g. 450" required />
+              <span class="spot-hint" id="spot-hint"></span>
+            </div>
+
+            <div class="form-group">
+              <label for="wc-quantity">Quantity (units)</label>
+              <input type="number" id="wc-quantity" name="quantity"
+                min="0.001" step="any" placeholder="e.g. 100" required />
+            </div>
+
+            <div class="form-group full">
+              <label for="wc-premium">Premium per Unit (USD)</label>
+              <input type="number" id="wc-premium" name="premium"
+                min="0" step="any" placeholder="e.g. 18" required />
+            </div>
+
+          </div><!-- /form-grid -->
+
+          <div class="disclaimer">
+            ⚠️ By writing this contract you agree it is a binding agreement.
+            Connect your crypto wallet to cryptographically sign the contract on-chain.
+            Fiat funding is processed via Stripe on the buyer side.
+          </div>
+
+          <div class="form-footer">
+            <button type="submit" id="btn-write-submit" class="btn btn-primary">
+              Write Contract
+            </button>
+            <span class="muted">Wallet signature optional but recommended.</span>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Portfolio Section ─────────────────────────────────────────────────── -->
+  <div id="section-portfolio" class="hidden">
+    <div class="section">
+      <div class="section-header">
+        <h2>💼 My Portfolio</h2>
+      </div>
+
+      <p class="muted" style="margin-bottom:1.5rem">
+        Connect your wallet to see contracts linked to your address.
+        Contracts bought by card will appear under the "card-buyer" address.
+      </p>
+
+      <div class="portfolio-section">
+        <h3>Contracts I've Written</h3>
+        <div id="portfolio-written"></div>
+      </div>
+
+      <div class="portfolio-section">
+        <h3>Contracts I've Purchased</h3>
+        <div id="portfolio-bought"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ─── Footer ───────────────────────────────────────────────────────────── -->
+  <footer>
+    <p><strong>Space Resource Exchange (SpaceRex)</strong></p>
+    <p>
+      Contracts are for demonstration purposes only and do not represent
+      real commodity transactions. Stripe integration requires a live publishable key
+      and a server-side charge endpoint. Crypto settlement uses MetaMask / EIP-1193.
+    </p>
+    <p style="margin-top:.5rem">
+      Resources: Lunar Ice · Helium-3 · Platinum Group Metals · Rare Earth Elements ·
+      Iron/Nickel · Silicon · Titanium · Regolith · Thorium · Carbonaceous Material
+    </p>
+  </footer>
+
+</div><!-- /app -->
+
+<!-- ─── Contract Detail Modal ────────────────────────────────────────────── -->
+<div id="contract-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3 id="modal-title">Contract Details</h3>
+      <button id="modal-close" class="modal-close-btn">✕</button>
+    </div>
+    <div class="modal-content">
+      <div id="modal-body"></div>
+    </div>
+    <div class="modal-footer">
+      <button id="modal-buy-btn" class="btn btn-success">Buy This Contract →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ─── Payment Modal ────────────────────────────────────────────────────── -->
+<div id="payment-modal" class="modal-overlay hidden">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3>Complete Purchase</h3>
+      <button id="pay-close" class="modal-close-btn">✕</button>
+    </div>
+    <div class="modal-content">
+      <div id="pay-summary"></div>
+
+      <div class="pay-tabs">
+        <button id="pay-tab-crypto" class="pay-tab active">🦊 Crypto Wallet</button>
+        <button id="pay-tab-card"   class="pay-tab">💳 Credit / Debit Card</button>
+      </div>
+
+      <!-- Crypto Panel -->
+      <div id="pay-panel-crypto">
+        <div class="crypto-info">
+          <strong>MetaMask / Web3 Wallet</strong><br/>
+          Clicking "Pay with Crypto" will prompt your wallet to sign and send the
+          premium as an ETH transaction to the contract seller.
+          (Demo: 0.001 ETH stand-in — production uses a USD-pegged stablecoin.)
+        </div>
+        <button id="btn-pay-crypto" class="btn btn-primary" style="width:100%">
+          Pay with Crypto
+        </button>
+      </div>
+
+      <!-- Card Panel -->
+      <div id="pay-panel-card" class="hidden">
+        <div class="stripe-card-wrapper">
+          <div id="stripe-card-element"></div>
+        </div>
+        <button id="btn-pay-card" class="btn btn-primary" style="width:100%">
+          Pay with Card
+        </button>
+        <p class="muted" style="margin-top:.5rem; font-size:.78rem">
+          Powered by Stripe. Replace <code>pk_test_REPLACE_WITH_YOUR_STRIPE_KEY</code>
+          in <code>js/payments.js</code> with your live publishable key.
+        </p>
+      </div>
+
+      <!-- Hidden fields -->
+      <input type="hidden" id="pay-contract-id" />
+      <input type="hidden" id="pay-amount" />
+    </div>
+  </div>
+</div>
+
+<!-- ─── Toast Container ───────────────────────────────────────────────────── -->
+<div id="toast-container"></div>
+
+<!-- ─── App Entry (ES Module) ────────────────────────────────────────────── -->
+<script type="module" src="js/app.js"></script>
+
+<script>
+  // Update open-contracts stat after module loads
+  window.addEventListener('load', () => {
+    try {
+      const raw = localStorage.getItem('srex_contracts');
+      const list = raw ? JSON.parse(raw) : [];
+      const open = list.filter(c => c.status === 'OPEN').length;
+      const el = document.getElementById('stat-open-contracts');
+      if (el) el.textContent = open || '5+';
+    } catch {}
+  });
+</script>
+</body>
+</html>
