@@ -1,0 +1,15 @@
+SPACEREASOURCEEXCHANGE — Mining game bridge
+==========================================
+1. Copy:
+   app/routes/mining_bridge.py  →  your repo app/routes/mining_bridge.py
+
+2. Follow REGISTER.md to include the router + CORS in app/main.py
+
+3. Optional env:
+   MINING_GAME_API_KEY=...
+   MINING_GAME_ORIGIN=...
+
+4. Endpoints under /api/mining/* (prices, deposit, account, sell-mark)
+
+Repo: https://github.com/Codesurfing10/SPACEREASOURCEEXCHANGE
+Game: https://github.com/Codesurfing10/Space-Mining-Game
