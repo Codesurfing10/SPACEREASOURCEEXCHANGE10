@@ -1,15 +1,22 @@
-SPACEREASOURCEEXCHANGE — Mining game bridge
-==========================================
-1. Copy:
-   app/routes/mining_bridge.py  →  your repo app/routes/mining_bridge.py
-
-2. Follow REGISTER.md to include the router + CORS in app/main.py
-
-3. Optional env:
-   MINING_GAME_API_KEY=...
-   MINING_GAME_ORIGIN=...
-
-4. Endpoints under /api/mining/* (prices, deposit, account, sell-mark)
-
+Remove Thorium from Space Resource Exchange
+===========================================
 Repo: https://github.com/Codesurfing10/SPACEREASOURCEEXCHANGE
-Game: https://github.com/Codesurfing10/Space-Mining-Game
+
+Current main branch seed does NOT include Thorium (LI, He3, PGM, REG, FeNi, SEC, CC only).
+If your live DB still has Thorium (older seed or manual add), run:
+
+  cd SPACEREASOURCEEXCHANGE
+  source .venv/bin/activate   # if used
+  python remove_thorium.py
+
+Or SQL (PostgreSQL / SQLite):
+
+  DELETE FROM payment_preferences WHERE contract_id IN
+    (SELECT id FROM contracts WHERE resource_type_id IN
+      (SELECT id FROM resource_types WHERE lower(name)='thorium' OR lower(symbol) IN ('th','thor','thorium')));
+  DELETE FROM offers WHERE contract_id IN
+    (SELECT id FROM contracts WHERE resource_type_id IN
+      (SELECT id FROM resource_types WHERE lower(name)='thorium' OR lower(symbol) IN ('th','thor','thorium')));
+  DELETE FROM contracts WHERE resource_type_id IN
+    (SELECT id FROM resource_types WHERE lower(name)='thorium' OR lower(symbol) IN ('th','thor','thorium'));
+  DELETE FROM resource_types WHERE lower(name)='thorium' OR lower(symbol) IN ('th','thor','thorium');
