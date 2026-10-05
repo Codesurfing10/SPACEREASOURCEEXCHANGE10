@@ -9,6 +9,7 @@ import {
   writeContract,
   buyContract,
   cancelContract,
+  closeContract,
   attachSignature,
   totalPremiumUsd,
   notionalUsd,
@@ -295,7 +296,7 @@ function renderPortfolio() {
               <td>${fmt(totalPremiumUsd(c))}</td>
               <td>${c.expiry}</td>
               <td><span class="status-${c.status.toLowerCase()}">${c.status}</span></td>
-              ${showCancel && c.status === "OPEN" ? `<td><button class="btn-sm btn-danger" data-action="cancel-contract" data-id="${c.id}">Cancel</button></td>` : showCancel ? "<td></td>" : ""}
+              ${showCancel && c.status === "OPEN" ? `<td><button class="btn-sm btn-danger" data-action="cancel-contract" data-id="${c.id}">Cancel</button></td>` : showCancel && c.status === "FILLED" ? `<td><button class="btn-sm btn-ghost" data-action="close-contract" data-id="${c.id}">Close</button></td>` : showCancel ? "<td></td>" : ""}
             </tr>`;
             })
             .join("")}</tbody>
@@ -471,7 +472,8 @@ function wireEvents() {
     };
 
     try {
-      const contract = writeContract(params);
+      document.getElementById("btn-write-submit").textContent = "Writing on Wave…";
+      const contract = await writeContract(params);
 
       // Optionally sign with wallet
       if (WalletState.connected) {
@@ -479,12 +481,12 @@ function wireEvents() {
           document.getElementById("btn-write-submit").textContent = "Signing…";
           const sig = await signContractMessage(contract);
           attachSignature(contract.id, sig);
-          toast("Contract written & signed on-chain!", "success");
+          toast(`Contract written on Wave (${contract.wave?.open?.symbol || "OPT"}). Signed.`, "success");
         } catch {
-          toast("Contract written (signature skipped).", "info");
+          toast(`Contract written on Wave (${contract.wave?.open?.symbol || "OPT"}); signature skipped.`, "info");
         }
       } else {
-        toast("Contract written! Connect wallet to sign it on-chain.", "info");
+        toast(`Contract written on Wave: ${contract.wave?.open?.symbol || contract.id}`, "success");
       }
 
       e.target.reset();
@@ -499,13 +501,32 @@ function wireEvents() {
   });
 
   // Portfolio cancel
-  document.getElementById("portfolio-written").addEventListener("click", (e) => {
+  document.getElementById("portfolio-written").addEventListener("click", async (e) => {
+    const closeBtn = e.target.closest("[data-action='close-contract']");
+    if (closeBtn) {
+      const reason = (prompt("Close reason: EXERCISED, EXPIRED, OFFSET or SETTLED", "EXERCISED") || "").toUpperCase();
+      if (!reason) return;
+      const px = prompt("Close (settlement) price per unit in USD (blank if none)", "");
+      try {
+        const c = await closeContract(closeBtn.dataset.id, {
+          reason,
+          closePrice: px === null || px === "" ? null : parseFloat(px),
+          callerAddress: WalletState.address,
+        });
+        renderPortfolio();
+        toast(`Closed; Wave burned OPT and minted ${c.wave?.close?.record?.symbol || "REC"}`, "success");
+      } catch (err) {
+        toast(err.message, "error");
+      }
+      return;
+    }
     const btn = e.target.closest("[data-action='cancel-contract']");
     if (!btn) return;
     try {
-      cancelContract(btn.dataset.id, WalletState.address);
+      toast("Cancelling on Wave…", "info");
+      const c = await cancelContract(btn.dataset.id, WalletState.address);
       renderPortfolio();
-      toast("Contract cancelled.", "info");
+      toast(`Cancelled; Wave minted ${c.wave?.close?.record?.symbol || "REC"}`, "info");
     } catch (err) {
       toast(err.message, "error");
     }

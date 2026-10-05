@@ -7,6 +7,7 @@
  */
 
 import { SEED_CONTRACTS } from "./data.js";
+import { mintOpenOnWave, closeOnWave } from "./wave.js";
 
 const STORAGE_KEY = "srex_contracts";
 
@@ -83,7 +84,21 @@ function writeContract(params) {
 
   contracts.push(newContract);
   _save(contracts);
-  return newContract;
+  // Persist Wave OPEN coin; surface failure to the UI (do not silently drop).
+  return mintOpenOnWave(newContract)
+    .then((wave) => {
+      newContract.wave = { open: wave };
+      const all = getAllContracts();
+      const i = all.findIndex((c) => c.id === newContract.id);
+      if (i !== -1) { all[i] = newContract; _save(all); }
+      return newContract;
+    })
+    .catch((err) => {
+      // Roll back local write so exchange and chain stay aligned.
+      const all = getAllContracts().filter((c) => c.id !== newContract.id);
+      _save(all);
+      throw err;
+    });
 }
 
 /**
@@ -134,8 +149,48 @@ function cancelContract(contractId, callerAddress) {
   }
 
   contracts[idx].status = "CANCELLED";
+  contracts[idx].closedAt = new Date().toISOString().slice(0, 10);
+  contracts[idx].closeReason = "CANCELLED";
   _save(contracts);
-  return contracts[idx];
+  const cancelled = contracts[idx];
+  return closeOnWave(cancelled, { reason: "CANCELLED", closedBy: callerAddress || null })
+    .then((wave) => {
+      cancelled.wave = { ...(cancelled.wave || {}), close: wave };
+      const all = getAllContracts();
+      const i = all.findIndex((c) => c.id === cancelled.id);
+      if (i !== -1) { all[i] = cancelled; _save(all); }
+      return cancelled;
+    });
+}
+
+/**
+ * Close a filled (or open) contract: exercise / expire / offset.
+ * Burns the Wave OPT coin and mints a permanent REC coin.
+ */
+async function closeContract(contractId, { reason, closePrice = null, callerAddress = null } = {}) {
+  const contracts = getAllContracts();
+  const idx = contracts.findIndex((c) => c.id === contractId);
+  if (idx === -1) throw new Error("Contract not found.");
+  const c = contracts[idx];
+  if (!["OPEN", "FILLED"].includes(c.status)) {
+    throw new Error("Only OPEN or FILLED contracts can be closed.");
+  }
+  const r = String(reason || "").toUpperCase();
+  if (!["EXERCISED", "EXPIRED", "OFFSET", "SETTLED"].includes(r)) {
+    throw new Error("reason must be EXERCISED, EXPIRED, OFFSET, or SETTLED.");
+  }
+  contracts[idx].status = "CLOSED";
+  contracts[idx].closeReason = r;
+  contracts[idx].closePrice = closePrice;
+  contracts[idx].closedAt = new Date().toISOString().slice(0, 10);
+  _save(contracts);
+  const closed = contracts[idx];
+  const wave = await closeOnWave(closed, { reason: r, closePrice, closedBy: callerAddress });
+  closed.wave = { ...(closed.wave || {}), close: wave };
+  const all = getAllContracts();
+  const i = all.findIndex((x) => x.id === closed.id);
+  if (i !== -1) { all[i] = closed; _save(all); }
+  return closed;
 }
 
 /** Total premium value of a contract in USD */
@@ -156,6 +211,7 @@ export {
   buyContract,
   attachSignature,
   cancelContract,
+  closeContract,
   totalPremiumUsd,
   notionalUsd,
 };

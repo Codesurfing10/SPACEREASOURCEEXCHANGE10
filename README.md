@@ -77,3 +77,26 @@ js/
 ## Disclaimer
 
 This is a demonstration application. Contracts written in the demo are stored in browser `localStorage` only and have no legal or financial effect. Stripe charges require a live key and a server-side backend. Crypto transactions on mainnet involve real funds — test on Goerli/Sepolia first.
+
+## Wave Network integration
+
+When an option contract is **written**, the exchange mints a unique `OPT-<contractId>` coin on [Wave Network](https://github.com/Codesurfing10/Wave-Network) (`POST /api/options/open`). When the contract is **cancelled or closed**, that coin is burned and a permanent `REC-<contractId>` record coin is minted (`POST /api/options/close`).
+
+Browser config (defaults to local Wave on port 3000):
+
+```js
+window.WAVE_API_URL = "http://127.0.0.1:3000";
+window.WAVE_EXCHANGE_KEY = "dev-exchange-key-wave-network";
+```
+
+Or set `localStorage` keys `srex_wave_api_url` / `srex_wave_exchange_key`.
+
+Node / automation uses env vars:
+
+```bash
+export WAVE_API_URL=http://127.0.0.1:3000
+export WAVE_EXCHANGE_KEY=dev-exchange-key-wave-network
+node scripts/wave-client.mjs open '{"contractId":"TEST-…", ...}'
+```
+
+If Wave is down, write/cancel fails visibly (local write is rolled back on open failure).
